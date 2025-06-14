@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: app-job
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: init-syncer
+          image: google/cloud-sdk:latest
+          command: ["/bin/bash", "-c"]
+          args: ["gsutil rsync -r gs://glow-sportradar/ /input-data"]
+          volumeMounts:
+            - name: input-data
+              mountPath: /input-data
+      containers:
+        - name: processor
+          image: glowtools/soccer:latest-4e4254a
+          command: ["/bin/bash", "-c"]
+          args: ["echo 'Processing files...' && ls -l /input-data && echo 'Processing complete.'"]
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "echo 'Job container started!'"]
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "echo 'Job container stopping!'"]
+          volumeMounts:
+            - name: input-data
+              mountPath: /input-data
+            - name: output-data
+              mountPath: /output-data
+      volumes:
+        - name: input-data
+          gcePersistentDisk:
+            pdName: your-persistent-disk-name
+            fsType: ext4
+        - name: output-data
+          emptyDir: {}
